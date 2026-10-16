@@ -1,0 +1,107 @@
+{
+  "name": "Magnifize LeadFlow \u2014 nieuwe aanvraag (lokale demo)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "intake-webhook",
+      "name": "Nieuwe aanvraag ontvangen",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "webhookId": "d8d30bf5-1ad7-49f7-b512-1303f90a517b",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "magnifize-leadflow",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CONFIGURE_LOCALLY",
+          "name": "Local demo credential"
+        }
+      }
+    },
+    {
+      "id": "idempotent-receiver",
+      "name": "Handtekening controleren en eenmalig verwerken",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        600,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/api/automation/process",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CONFIGURE_LOCALLY",
+          "name": "Local demo credential"
+        }
+      }
+    },
+    {
+      "id": "acknowledgement",
+      "name": "Verwerking bevestigen",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        980,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Nieuwe aanvraag ontvangen": {
+      "main": [
+        [
+          {
+            "node": "Handtekening controleren en eenmalig verwerken",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handtekening controleren en eenmalig verwerken": {
+      "main": [
+        [
+          {
+            "node": "Verwerking bevestigen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": false,
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none"
+  },
+  "pinData": {}
+}

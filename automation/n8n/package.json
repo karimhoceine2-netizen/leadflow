@@ -1,0 +1,8 @@
+{
+  "name": "magnifize-leadflow-local-n8n",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Isolated local n8n runtime for the LeadFlow portfolio demo",
+  "engines": { "node": ">=24 <25" },
+  "dependencies": { "n8n": "2.42.6" }
+}
