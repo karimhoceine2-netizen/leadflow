@@ -6,7 +6,16 @@ from pathlib import Path
 from typing import Protocol
 from uuid import UUID, uuid4
 
-from .models import AutomationInfo, LeadCreate, LeadResponse, LeadRecord, LeadDetail, LeadPage, StatusEvent, StatusUpdate
+from .models import (
+    AutomationInfo,
+    LeadCreate,
+    LeadResponse,
+    LeadRecord,
+    LeadDetail,
+    LeadPage,
+    StatusEvent,
+    StatusUpdate,
+)
 from .repository_errors import StorageUnavailable
 from . import outbox
 
@@ -105,10 +114,21 @@ class DemoRepository:
                 where += " AND leads.status = ?"
                 values.append(status)
             total = connection.execute(f"SELECT count(*) FROM leads {where}", values).fetchone()[0]
-            rows = connection.execute(f"{self._automation_query()} {where} ORDER BY leads.created_at DESC, leads.id DESC LIMIT ? OFFSET ?", [*values, page_size, (page - 1) * page_size]).fetchall()
+            rows = connection.execute(
+                f"{self._automation_query()} {where} ORDER BY leads.created_at DESC, leads.id DESC LIMIT ? OFFSET ?",
+                [*values, page_size, (page - 1) * page_size],
+            ).fetchall()
             counts = {key: 0 for key in ("new", "contacted", "qualified", "closed")}
-            counts.update({row[0]: row[1] for row in connection.execute("SELECT status, count(*) FROM leads GROUP BY status")})
-            return LeadPage(items=[LeadRecord(**dict(row), automation=self._automation_info(row)) for row in rows], total=total, page=page, page_size=page_size, counts=counts)
+            counts.update(
+                {row[0]: row[1] for row in connection.execute("SELECT status, count(*) FROM leads GROUP BY status")}
+            )
+            return LeadPage(
+                items=[LeadRecord(**dict(row), automation=self._automation_info(row)) for row in rows],
+                total=total,
+                page=page,
+                page_size=page_size,
+                counts=counts,
+            )
 
     @staticmethod
     def _automation_query():
@@ -127,21 +147,32 @@ class DemoRepository:
         result = json.loads(row["_result"]) if processed else {}
         if not isinstance(result, dict):
             raise ValueError("Invalid stored workflow result")
-        return AutomationInfo(status="processed" if processed else "failed" if row["_delivery_state"] == "dead" else "pending",
-            delivery_state=row["_delivery_state"], attempts=row["_attempts"],
-            processed_at=row["_processed_at"], priority=result.get("priority"))
+        return AutomationInfo(
+            status="processed" if processed else "failed" if row["_delivery_state"] == "dead" else "pending",
+            delivery_state=row["_delivery_state"],
+            attempts=row["_attempts"],
+            processed_at=row["_processed_at"],
+            priority=result.get("priority"),
+        )
 
     def _detail(self, connection, lead_id):
         row = connection.execute(self._automation_query() + " WHERE leads.id = ?", (str(lead_id),)).fetchone()
         if not row:
             return None
-        history = connection.execute("SELECT * FROM lead_status_events WHERE lead_id = ? ORDER BY rowid DESC", (str(lead_id),)).fetchall()
-        return LeadDetail(**dict(row), automation=self._automation_info(row), history=[StatusEvent.model_validate(dict(event)) for event in history])
+        history = connection.execute(
+            "SELECT * FROM lead_status_events WHERE lead_id = ? ORDER BY rowid DESC", (str(lead_id),)
+        ).fetchall()
+        return LeadDetail(
+            **dict(row),
+            automation=self._automation_info(row),
+            history=[StatusEvent.model_validate(dict(event)) for event in history],
+        )
 
     async def detail(self, lead_id: UUID) -> LeadDetail | None:
         def read():
             with self._connection() as connection:
                 return self._detail(connection, lead_id)
+
         try:
             return await asyncio.to_thread(read)
         except (sqlite3.Error, ValueError):
@@ -162,6 +193,12 @@ class DemoRepository:
             if row["version"] != change.expected_version:
                 raise VersionConflict()
             if row["status"] != change.status:
-                connection.execute("UPDATE leads SET status = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (change.status, str(lead_id)))
-                connection.execute("INSERT INTO lead_status_events (id, lead_id, previous_status, new_status, actor) VALUES (?, ?, ?, ?, ?)", (str(uuid4()), str(lead_id), row["status"], change.status, actor))
+                connection.execute(
+                    "UPDATE leads SET status = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (change.status, str(lead_id)),
+                )
+                connection.execute(
+                    "INSERT INTO lead_status_events (id, lead_id, previous_status, new_status, actor) VALUES (?, ?, ?, ?, ?)",
+                    (str(uuid4()), str(lead_id), row["status"], change.status, actor),
+                )
             return self._detail(connection, lead_id)

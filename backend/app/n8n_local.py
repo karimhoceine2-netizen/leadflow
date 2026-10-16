@@ -1,4 +1,5 @@
 """Project-scoped n8n setup/start. Never installs globally or prints secrets."""
+
 import argparse
 import fcntl
 import json
@@ -36,22 +37,37 @@ def runtime_environment():
     broker_port = int(os.getenv("LEADFLOW_N8N_BROKER_PORT", str(port + 100)))
     if not 1024 <= broker_port <= 65535 or broker_port == port:
         raise ValueError("De lokale runnerpoort moet geldig zijn en verschillen van de n8n-poort.")
-    environment = {**os.environ, "N8N_USER_FOLDER": str(root), "N8N_LISTEN_ADDRESS": "127.0.0.1",
-        "N8N_HOST": "127.0.0.1", "N8N_PORT": str(port), "N8N_PROTOCOL": "http", "N8N_SECURE_COOKIE": "false",
-        "N8N_EDITOR_BASE_URL": f"http://127.0.0.1:{port}", "N8N_WEBHOOK_URL": f"http://127.0.0.1:{port}/",
-        "N8N_DIAGNOSTICS_ENABLED": "false", "N8N_VERSION_NOTIFICATIONS_ENABLED": "false",
-        "N8N_TEMPLATES_ENABLED": "false", "N8N_PERSONALIZATION_ENABLED": "false",
-        "N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS": "true", "N8N_COMMUNITY_PACKAGES_ENABLED": "false",
+    environment = {
+        **os.environ,
+        "N8N_USER_FOLDER": str(root),
+        "N8N_LISTEN_ADDRESS": "127.0.0.1",
+        "N8N_HOST": "127.0.0.1",
+        "N8N_PORT": str(port),
+        "N8N_PROTOCOL": "http",
+        "N8N_SECURE_COOKIE": "false",
+        "N8N_EDITOR_BASE_URL": f"http://127.0.0.1:{port}",
+        "N8N_WEBHOOK_URL": f"http://127.0.0.1:{port}/",
+        "N8N_DIAGNOSTICS_ENABLED": "false",
+        "N8N_VERSION_NOTIFICATIONS_ENABLED": "false",
+        "N8N_TEMPLATES_ENABLED": "false",
+        "N8N_PERSONALIZATION_ENABLED": "false",
+        "N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS": "true",
+        "N8N_COMMUNITY_PACKAGES_ENABLED": "false",
         "N8N_UNVERIFIED_PACKAGES_ENABLED": "false",
         "NODES_INCLUDE": '["n8n-nodes-base.webhook","n8n-nodes-base.httpRequest","n8n-nodes-base.respondToWebhook"]',
         # Pruning uses delayed soft deletion; false makes unsaved production runs hard-delete immediately.
         "EXECUTIONS_DATA_PRUNE": "false",
         # n8n may persist in-flight data; completed production payloads must not be retained.
-        "EXECUTIONS_DATA_SAVE_ON_SUCCESS": "none", "EXECUTIONS_DATA_SAVE_ON_ERROR": "none",
-        "EXECUTIONS_DATA_SAVE_ON_PROGRESS": "false", "EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS": "false",
-        "N8N_RUNNERS_BROKER_PORT": str(broker_port), "N8N_RUNNERS_BROKER_LISTEN_ADDRESS": "127.0.0.1",
-        "N8N_HIRING_BANNER_ENABLED": "false", "N8N_BLOCK_ENV_ACCESS_IN_NODE": "true",
-        "NO_PROXY": "localhost,127.0.0.1,::1"}
+        "EXECUTIONS_DATA_SAVE_ON_SUCCESS": "none",
+        "EXECUTIONS_DATA_SAVE_ON_ERROR": "none",
+        "EXECUTIONS_DATA_SAVE_ON_PROGRESS": "false",
+        "EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS": "false",
+        "N8N_RUNNERS_BROKER_PORT": str(broker_port),
+        "N8N_RUNNERS_BROKER_LISTEN_ADDRESS": "127.0.0.1",
+        "N8N_HIRING_BANNER_ENABLED": "false",
+        "N8N_BLOCK_ENV_ACCESS_IN_NODE": "true",
+        "NO_PROXY": "localhost,127.0.0.1,::1",
+    }
     return environment
 
 
@@ -78,8 +94,14 @@ def run_cli(arguments, secret):
     node = shutil.which("node")
     if not node or not N8N_BIN.is_file():
         raise RuntimeError("n8n ontbreekt. Voer vanuit de projectmap uit: npm ci --prefix automation/n8n")
-    result = subprocess.run([node, str(N8N_BIN), *arguments], cwd=PROJECT_ROOT, env=runtime_environment(),
-                            text=True, capture_output=True, timeout=180)
+    result = subprocess.run(
+        [node, str(N8N_BIN), *arguments],
+        cwd=PROJECT_ROOT,
+        env=runtime_environment(),
+        text=True,
+        capture_output=True,
+        timeout=180,
+    )
     output = (result.stdout + result.stderr).replace(secret, "[redacted]")
     if result.returncode or "An error occurred" in output:
         raise RuntimeError(f"n8n {arguments[0]} mislukt: {output[-1600:]}")
@@ -100,15 +122,31 @@ def setup():
                 return
     api_url = os.getenv("LEADFLOW_AUTOMATION_API_URL", "http://127.0.0.1:8000")
     target = urlparse(api_url)
-    if target.scheme != "http" or target.hostname not in {"127.0.0.1", "localhost", "::1"} or target.username or target.password or target.query or target.fragment or target.path not in {"", "/"}:
+    if (
+        target.scheme != "http"
+        or target.hostname not in {"127.0.0.1", "localhost", "::1"}
+        or target.username
+        or target.password
+        or target.query
+        or target.fragment
+        or target.path not in {"", "/"}
+    ):
         raise ValueError("De callback-API moet een lokale HTTP-URL zijn.")
     workflow = json.loads((PROJECT_ROOT / "outputs/leadflow-n8n-workflow.json").read_text())
     for node in workflow.get("nodes", []):
         if "credentials" in node:
-            node["credentials"] = {kind: {"id": CREDENTIAL_ID, "name": "LeadFlow local demo"} for kind in node["credentials"]}
+            node["credentials"] = {
+                kind: {"id": CREDENTIAL_ID, "name": "LeadFlow local demo"} for kind in node["credentials"]
+            }
     workflow["nodes"][1]["parameters"]["url"] = api_url.rstrip("/") + "/api/automation/process"
-    credential = [{"id": CREDENTIAL_ID, "name": "LeadFlow lokale webhook", "type": "httpHeaderAuth",
-                   "data": {"name": "X-LeadFlow-Token", "value": secret}}]
+    credential = [
+        {
+            "id": CREDENTIAL_ID,
+            "name": "LeadFlow lokale webhook",
+            "type": "httpHeaderAuth",
+            "data": {"name": "X-LeadFlow-Token", "value": secret},
+        }
+    ]
     scratch = PROJECT_ROOT / "work"
     scratch.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="n8n-import-", dir=scratch) as temporary:

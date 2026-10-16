@@ -1,4 +1,5 @@
 """Idempotent, local-only seed command: python -m app.seed."""
+
 import asyncio
 from uuid import NAMESPACE_URL, uuid5
 
@@ -7,9 +8,24 @@ from .models import LeadCreate
 from .repository import DemoRepository
 
 SAMPLES = [
-    LeadCreate(company_name="Demo Studio Alpha", name="Demo Alpha", email="alpha@example.com", description="Demo: intakeformulieren koppelen aan een takenlijst."),
-    LeadCreate(company_name="Demo Studio Bravo", name="Demo Bravo", email="bravo@example.com", description="Demo: dringende aanvraag voor automatische opvolging."),
-    LeadCreate(company_name="Demo Studio Charlie", name="Demo Charlie", email="charlie@example.com", description="Demo: documenten sorteren en een medewerker laten beoordelen."),
+    LeadCreate(
+        company_name="Demo Studio Alpha",
+        name="Demo Alpha",
+        email="alpha@example.com",
+        description="Demo: intakeformulieren koppelen aan een takenlijst.",
+    ),
+    LeadCreate(
+        company_name="Demo Studio Bravo",
+        name="Demo Bravo",
+        email="bravo@example.com",
+        description="Demo: dringende aanvraag voor automatische opvolging.",
+    ),
+    LeadCreate(
+        company_name="Demo Studio Charlie",
+        name="Demo Charlie",
+        email="charlie@example.com",
+        description="Demo: documenten sorteren en een medewerker laten beoordelen.",
+    ),
 ]
 
 

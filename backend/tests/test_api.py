@@ -11,7 +11,12 @@ from app.main import create_app
 from app.models import LeadCreate
 from app.repository import DemoRepository, IdempotencyConflict, StorageUnavailable
 
-PAYLOAD = {"name": "Amina Jansen", "email": "amina@example.com", "company_name": "Northstar BV", "description": "We willen inkomende aanvragen automatisch verdelen."}
+PAYLOAD = {
+    "name": "Amina Jansen",
+    "email": "amina@example.com",
+    "company_name": "Northstar BV",
+    "description": "We willen inkomende aanvragen automatisch verdelen.",
+}
 
 
 @pytest.fixture
@@ -26,7 +31,9 @@ def client(settings):
 
 
 def send(client, payload=None, key=None):
-    return client.post("/api/leads", json=payload if payload is not None else PAYLOAD, headers={"Idempotency-Key": str(key or uuid4())})
+    return client.post(
+        "/api/leads", json=payload if payload is not None else PAYLOAD, headers={"Idempotency-Key": str(key or uuid4())}
+    )
 
 
 def test_intake_is_saved_and_normalized(client, settings):
@@ -38,7 +45,19 @@ def test_intake_is_saved_and_normalized(client, settings):
         assert db.execute("select name, email from leads").fetchone() == ("Amina Jansen", "amina@example.com")
 
 
-@pytest.mark.parametrize("field,value", [("name", "a"), ("name", "  "), ("name", 123), ("name", "A\x00B"), ("email", "no-email"), ("company_name", " "), ("description", "short"), ("description", "a" * 2001)])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("name", "a"),
+        ("name", "  "),
+        ("name", 123),
+        ("name", "A\x00B"),
+        ("email", "no-email"),
+        ("company_name", " "),
+        ("description", "short"),
+        ("description", "a" * 2001),
+    ],
+)
 def test_invalid_input_is_not_saved(client, settings, field, value):
     result = send(client, {**PAYLOAD, field: value})
     assert result.status_code == 422
@@ -93,6 +112,7 @@ def test_concurrent_submissions_are_atomic(settings):
         results = await asyncio.gather(*(repository.create(LeadCreate(**PAYLOAD), key) for _ in range(8)))
         assert len({result.id for result in results}) == 1
         assert sum(not result.duplicate for result in results) == 1
+
     asyncio.run(scenario())
 
 
@@ -100,6 +120,7 @@ def test_storage_failure_has_actionable_safe_error(client):
     class Unavailable:
         async def create(self, lead, key):
             raise StorageUnavailable("SECRET-DO-NOT-ECHO")
+
     client.app.state.repository = Unavailable()
     result = send(client)
     assert result.status_code == 503
@@ -118,7 +139,14 @@ def test_large_request_is_rejected(client):
 
 def test_cors_allows_only_configured_origins(client):
     for origin, allowed in [("http://localhost:3000", True), ("https://other.example", False)]:
-        result = client.options("/api/leads", headers={"Origin": origin, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "Content-Type,Idempotency-Key"})
+        result = client.options(
+            "/api/leads",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "Content-Type,Idempotency-Key",
+            },
+        )
         assert (result.headers.get("access-control-allow-origin") == origin) == allowed
 
 
@@ -145,6 +173,7 @@ def test_unsafe_or_incomplete_configuration_fails(configuration):
 
 def test_environment_file_is_loaded_from_root(tmp_path, monkeypatch):
     import app.config as config
+
     monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(config, "dotenv_values", lambda path: {"RATE_LIMIT_PER_MINUTE": "11"})
     monkeypatch.delenv("RATE_LIMIT_PER_MINUTE", raising=False)
