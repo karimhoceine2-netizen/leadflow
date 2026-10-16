@@ -2,12 +2,9 @@ import asyncio
 import hashlib
 import json
 import sqlite3
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 from uuid import UUID, uuid4
-
-import httpx
 
 from .models import AutomationInfo, LeadCreate, LeadResponse, LeadRecord, LeadDetail, LeadPage, StatusEvent, StatusUpdate
 from .repository_errors import StorageUnavailable
@@ -168,56 +165,3 @@ class DemoRepository:
                 connection.execute("UPDATE leads SET status = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (change.status, str(lead_id)))
                 connection.execute("INSERT INTO lead_status_events (id, lead_id, previous_status, new_status, actor) VALUES (?, ?, ?, ?, ?)", (str(uuid4()), str(lead_id), row["status"], change.status, actor))
             return self._detail(connection, lead_id)
-
-
-@dataclass
-class SupabaseRepository:
-    url: str
-    key: str
-    client: httpx.AsyncClient
-
-    async def create(self, lead: LeadCreate, key: UUID) -> LeadResponse:
-        # PostgreSQL RPC handles insert/retry/conflict in one transaction.
-        try:
-            response = await self.client.post(
-                f"{self.url}/rest/v1/rpc/submit_lead",
-                headers={"apikey": self.key, "Authorization": f"Bearer {self.key}"},
-                json={"p_lead": lead.model_dump(), "p_key": str(key), "p_hash": payload_hash(lead)},
-            )
-            if response.status_code == 409 and response.json().get("code") == "23505":
-                raise IdempotencyConflict()
-            response.raise_for_status()
-            return LeadResponse.model_validate(response.json())
-        except (httpx.HTTPError, ValueError, TypeError, AttributeError):
-            raise StorageUnavailable() from None
-
-    async def _rpc(self, name: str, payload: dict):
-        try:
-            response = await self.client.post(f"{self.url}/rest/v1/rpc/{name}", headers={"apikey": self.key, "Authorization": f"Bearer {self.key}"}, json=payload)
-            response.raise_for_status()
-            return response.json()
-        except (httpx.HTTPError, ValueError):
-            raise StorageUnavailable() from None
-
-    async def list(self, query: str, status: str | None, page: int, page_size: int) -> LeadPage:
-        result = await self._rpc("list_leads", {"p_query": query, "p_status": status, "p_page": page, "p_size": page_size})
-        try:
-            return LeadPage.model_validate(result)
-        except ValueError:
-            raise StorageUnavailable() from None
-
-    async def detail(self, lead_id: UUID) -> LeadDetail | None:
-        result = await self._rpc("get_lead_detail", {"p_id": str(lead_id)})
-        try:
-            return LeadDetail.model_validate(result) if result else None
-        except ValueError:
-            raise StorageUnavailable() from None
-
-    async def update_status(self, lead_id: UUID, change: StatusUpdate, actor: str) -> LeadDetail | None:
-        result = await self._rpc("update_lead_status", {"p_id": str(lead_id), "p_status": change.status, "p_version": change.expected_version, "p_actor": actor})
-        if isinstance(result, dict) and result.get("conflict"):
-            raise VersionConflict()
-        try:
-            return LeadDetail.model_validate(result) if result else None
-        except ValueError:
-            raise StorageUnavailable() from None

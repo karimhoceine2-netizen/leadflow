@@ -68,8 +68,6 @@ Check the app's actual queue separately with `.venv/bin/python -m app.automation
 
 `outputs/leadflow-n8n-workflow.json` contains an inactive workflow definition with a placeholder credential reference and no pinned execution data. A project-local n8n helper and locked package definition are included. Live n8n setup imports a credential and publishes a local workflow; it must be a deliberate, separate action. It was **not run** during this preparation.
 
-The Supabase repository adapter is retained as experimental source. Its production setup and migrations are outside this showcase's verified path.
-
 ## Architecture
 
 ```mermaid
@@ -106,9 +104,9 @@ npm run typecheck
 npm run build
 ```
 
-Verified during preparation: **104 backend tests passed; 1 live n8n test was skipped**. TypeScript checking, the Next.js production build, seed command and offline automation demo passed. Browser checks covered login, lead details, workflow status, status saving and responsive views.
+Verified during preparation: **97 backend tests passed; 1 live n8n test was skipped**. TypeScript checking, the Next.js production build, seed command and offline automation demo passed. Browser checks covered login, lead details, workflow status, status saving and responsive views.
 
-Tests ran on Python 3.14.7 / Node.js 24.19.0, including from a fresh copy with a new virtual environment (`pip install -r requirements-lock.txt`) and `npm ci`: 104 backend tests passed (1 skipped), and the TypeScript check and production build passed. The existing Playwright suite was retained but not run in this preparation. One upstream FastAPI/Starlette test-client deprecation warning remains. No dependency upgrade was performed.
+Tests ran on Python 3.14.7 / Node.js 24.19.0, including from a fresh copy with a new virtual environment (`pip install -r requirements-lock.txt`) and `npm ci`: 97 backend tests passed (1 skipped), and the TypeScript check and production build passed. The existing Playwright suite was retained but not run in this preparation. One upstream FastAPI/Starlette test-client deprecation warning remains. No dependency upgrade was performed.
 
 Screenshots use a separate mock QA database. Workflow receipts shown there were produced with a mock HTTP transport; they are not evidence of a live n8n run or client usage.
 

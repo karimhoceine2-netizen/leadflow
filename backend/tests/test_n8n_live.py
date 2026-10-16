@@ -53,7 +53,7 @@ def test_real_n8n_retry_auth_and_one_effect():
         root = Path(directory)
         db_path = root / "leads.sqlite3"
         env_path = root / ".env"
-        environment = {**os.environ, "APP_ENV": "test", "STORAGE_MODE": "demo", "DEMO_DB_PATH": str(db_path),
+        environment = {**os.environ, "APP_ENV": "test", "DEMO_DB_PATH": str(db_path),
                        "LEADFLOW_ENV_FILE": str(env_path), "LEADFLOW_N8N_DATA_DIR": str(root / "n8n"),
                        "LEADFLOW_N8N_PORT": "5680", "LEADFLOW_N8N_BROKER_PORT": "5780",
                        "LEADFLOW_AUTOMATION_API_URL": API, "N8N_WEBHOOK_URL": N8N + "/webhook/magnifize-leadflow",

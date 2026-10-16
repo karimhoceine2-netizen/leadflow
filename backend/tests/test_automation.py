@@ -14,7 +14,7 @@ from app.config import Settings
 from app.main import create_app
 from app.models import LeadCreate, StatusUpdate
 from app.outbox import EventMismatch, Outbox
-from app.repository import DemoRepository, StorageUnavailable
+from app.repository import DemoRepository
 from test_api import PAYLOAD, send
 
 SECRET = secrets.token_urlsafe(48)
@@ -223,7 +223,7 @@ def test_nonlocal_or_unsafe_delivery_configuration_fails(url):
 def test_incomplete_or_cloud_automation_configuration_fails():
     with pytest.raises(ValueError): Settings(automation_enabled=True)
     with pytest.raises(ValueError):
-        Settings(automation_enabled=True, storage_mode="supabase", supabase_url="https://example.supabase.co", supabase_service_role_key="test-key", n8n_webhook_secret=SECRET)
+        Settings(automation_enabled=True, app_env="production", n8n_webhook_secret=SECRET)
 
 
 def test_n8n_prepare_preserves_admin_config_and_never_rotates_existing_secret(tmp_path, monkeypatch):
