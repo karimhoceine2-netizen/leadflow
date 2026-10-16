@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.config import Settings
 from app.main import create_app
 from app.models import LeadCreate
-from app.repository import DemoRepository, IdempotencyConflict, StorageUnavailable, SupabaseRepository
+from app.repository import DemoRepository, IdempotencyConflict, StorageUnavailable
 
 PAYLOAD = {"name": "Amina Jansen", "email": "amina@example.com", "company_name": "Northstar BV", "description": "We willen inkomende aanvragen automatisch verdelen."}
 
@@ -134,10 +134,10 @@ def test_rate_limit_and_cors_on_errors(settings):
 
 def test_no_public_lead_listing(client):
     assert client.get("/api/leads").status_code == 405
-    assert client.get("/health").json() == {"status": "ok", "storage": "demo"}
+    assert client.get("/health").json() == {"status": "ok"}
 
 
-@pytest.mark.parametrize("configuration", [{"app_env": "production"}, {"storage_mode": "supabase"}, {"allowed_origins": ["*"]}])
+@pytest.mark.parametrize("configuration", [{"app_env": "production"}, {"allowed_origins": ["*"]}])
 def test_unsafe_or_incomplete_configuration_fails(configuration):
     with pytest.raises(ValueError):
         Settings(**configuration)
@@ -146,32 +146,8 @@ def test_unsafe_or_incomplete_configuration_fails(configuration):
 def test_environment_file_is_loaded_from_root(tmp_path, monkeypatch):
     import app.config as config
     monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(config, "dotenv_values", lambda path: {"STORAGE_MODE": "demo", "RATE_LIMIT_PER_MINUTE": "11"})
+    monkeypatch.setattr(config, "dotenv_values", lambda path: {"RATE_LIMIT_PER_MINUTE": "11"})
     monkeypatch.delenv("RATE_LIMIT_PER_MINUTE", raising=False)
     assert Settings.load().rate_limit_per_minute == 11
     monkeypatch.setenv("RATE_LIMIT_PER_MINUTE", "12")
     assert Settings.load().rate_limit_per_minute == 12
-
-
-@pytest.mark.parametrize("status,body,expected", [
-    (200, {"id": "651bdaf0-f0c4-4044-b751-bf6384c97e9b", "status": "new", "duplicate": False}, None),
-    (409, {"code": "23505"}, IdempotencyConflict),
-    (401, {"message": "bad key"}, StorageUnavailable),
-    (500, {"message": "private DB details"}, StorageUnavailable),
-    (200, {"bad": "shape"}, StorageUnavailable),
-])
-def test_supabase_adapter_contract_without_external_calls(status, body, expected):
-    def handler(request):
-        assert request.url.path == "/rest/v1/rpc/submit_lead"
-        assert request.headers["Authorization"] == "Bearer test-key"
-        return httpx.Response(status, json=body)
-
-    async def scenario():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            repository = SupabaseRepository("https://example.supabase.co", "test-key", client)
-            if expected:
-                with pytest.raises(expected):
-                    await repository.create(LeadCreate(**PAYLOAD), uuid4())
-            else:
-                assert (await repository.create(LeadCreate(**PAYLOAD), uuid4())).status == "new"
-    asyncio.run(scenario())

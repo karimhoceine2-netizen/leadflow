@@ -1,8 +1,7 @@
-import logging
 import asyncio
-from contextlib import suppress
+import logging
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from uuid import UUID
 
 import httpx
@@ -16,7 +15,7 @@ from .auth import LocalAuth
 from .admin import router as admin_router
 from .automation import router as automation_router, Worker
 from .models import LeadCreate, LeadResponse
-from .repository import DemoRepository, IdempotencyConflict, StorageUnavailable, SupabaseRepository
+from .repository import DemoRepository, IdempotencyConflict, StorageUnavailable
 
 logger = logging.getLogger("leadflow")
 
@@ -27,11 +26,8 @@ def create_app(settings: Settings | None = None, *, start_automation_worker: boo
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         async with httpx.AsyncClient(timeout=8.0, follow_redirects=False, trust_env=False) as client:
-            if settings.storage_mode == "supabase":
-                app.state.repository = SupabaseRepository(settings.supabase_url, settings.supabase_service_role_key.get_secret_value(), client)
-            else:
-                app.state.repository = DemoRepository(settings.demo_db_path)
-                await app.state.repository.initialize()
+            app.state.repository = DemoRepository(settings.demo_db_path)
+            await app.state.repository.initialize()
             worker = asyncio.create_task(Worker(settings, client).run()) if settings.automation_enabled and start_automation_worker else None
             try:
                 yield
@@ -87,7 +83,7 @@ def create_app(settings: Settings | None = None, *, start_automation_worker: boo
 
     @app.get("/health")
     async def health():
-        return {"status": "ok", "storage": settings.storage_mode}
+        return {"status": "ok"}
 
     @app.post("/api/leads", response_model=LeadResponse, status_code=201)
     async def create_lead(lead: LeadCreate, request: Request, response: Response,

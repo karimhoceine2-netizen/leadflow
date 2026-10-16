@@ -12,7 +12,7 @@ from app.auth import COOKIE, hash_password, verify_password
 from app.config import Settings
 from app.main import create_app
 from app.models import LeadCreate, StatusUpdate
-from app.repository import DemoRepository, StorageUnavailable, SupabaseRepository, VersionConflict
+from app.repository import DemoRepository, StorageUnavailable, VersionConflict
 from test_api import PAYLOAD, send
 
 ORIGIN = {"Origin": "http://localhost:3000"}
@@ -243,24 +243,3 @@ def test_admin_storage_failure_is_safe(client):
     client.app.state.repository = Unavailable()
     for result in [client.get("/api/admin/leads"), client.get(f"/api/admin/leads/{uuid4()}"), client.patch(f"/api/admin/leads/{uuid4()}/status", json={"status": "closed", "expected_version": 0}, headers=headers)]:
         assert result.status_code == 503 and "secret" not in result.text
-
-
-def test_supabase_admin_adapter_contract_without_external_calls():
-    lead_id = str(uuid4())
-    detail = {"id": lead_id, **PAYLOAD, "status": "new", "version": 0, "created_at": "2026-10-10T10:00:00Z", "updated_at": "2026-10-10T10:00:00Z", "history": []}
-    def handler(request):
-        assert request.headers["Authorization"] == "Bearer test-key"
-        name = request.url.path.split("/")[-1]
-        if name == "list_leads":
-            return httpx.Response(200, json={"items": [detail], "total": 1, "page": 1, "page_size": 20, "counts": {"new": 1}})
-        if name == "get_lead_detail": return httpx.Response(200, json=detail)
-        if name == "update_lead_status": return httpx.Response(200, json={"conflict": True})
-        return httpx.Response(500)
-    async def scenario():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            repo = SupabaseRepository("https://example.supabase.co", "test-key", client)
-            assert (await repo.list("", None, 1, 20)).total == 1
-            assert (await repo.detail(UUID(lead_id))).id == UUID(lead_id)
-            with pytest.raises(VersionConflict):
-                await repo.update_status(UUID(lead_id), StatusUpdate(status="closed", expected_version=0), "admin@example.com")
-    asyncio.run(scenario())

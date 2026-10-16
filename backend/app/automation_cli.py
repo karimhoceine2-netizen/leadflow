@@ -15,8 +15,6 @@ async def main():
     parser.add_argument("--json", action="store_true", help="Machineleesbaar statusoverzicht")
     args = parser.parse_args()
     settings = Settings.load()
-    if settings.storage_mode != "demo":
-        raise SystemExit("De lokale wachtrij is nog niet beschikbaar voor Supabase.")
     await DemoRepository(settings.demo_db_path).initialize()
     outbox = Outbox(settings.demo_db_path)
     if args.command == "retry":

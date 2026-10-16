@@ -57,8 +57,6 @@ def runtime_environment():
 
 def prepare():
     settings = Settings.load()
-    if settings.app_env == "production" or settings.storage_mode != "demo":
-        raise ValueError("Deze n8n-hulp is alleen voor de lokale SQLite-demo.")
     path = settings.env_file
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path.parent / ".leadflow-setup.lock", "a") as lock:

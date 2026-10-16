@@ -15,8 +15,6 @@ SAMPLES = [
 
 async def main():
     settings = Settings.load()
-    if settings.storage_mode != "demo":
-        raise SystemExit("Seed only supports STORAGE_MODE=demo")
     repository = DemoRepository(settings.demo_db_path)
     await repository.initialize()
     for lead in SAMPLES:
