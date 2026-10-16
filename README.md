@@ -6,6 +6,8 @@ A portfolio project by Karim, a first-year AI student at Vrije Universiteit Amst
 
 ![LeadFlow CRM with explicitly synthetic records](docs/dashboard-desktop.jpg)
 
+**[▶ Watch the 60-second walkthrough](docs/leadflow-demo.mp4)** — intake form, signed delivery to a mock webhook, CRM detail and status history. Fictional data; a local mock webhook stands in for n8n.
+
 ## The problem
 
 A form submission is only the start of a process. It needs reliable storage, an obvious place for follow-up, and a workflow that can recover when delivery fails without processing the same event twice.
