@@ -1,4 +1,5 @@
 """Local demo authentication; no browser-visible password hashes or session tokens."""
+
 import asyncio
 import hashlib
 import hmac
@@ -96,8 +97,9 @@ class LocalAuth:
         token = secrets.token_urlsafe(32)
         session = Session(self.settings.admin_email, secrets.token_urlsafe(32), time.monotonic() + SESSION_SECONDS)
         self.sessions[hashlib.sha256(token.encode()).hexdigest()] = session
-        response.set_cookie(COOKIE, token, max_age=SESSION_SECONDS, httponly=True, secure=False,
-                            samesite="strict", path="/api/admin")
+        response.set_cookie(
+            COOKIE, token, max_age=SESSION_SECONDS, httponly=True, secure=False, samesite="strict", path="/api/admin"
+        )
         return {"email": session.email, "csrf_token": session.csrf}
 
     async def setup(self, request: Request, email: str, password: str):
@@ -115,6 +117,7 @@ class LocalAuth:
         # Advisory file lock makes first-run setup exclusive across local processes.
         import fcntl
         import os
+
         path = self.settings.env_file
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path.parent / ".leadflow-setup.lock", "a") as lock:

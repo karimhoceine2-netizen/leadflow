@@ -1,4 +1,5 @@
 """Signed local delivery with leases, retries, and idempotent receiver effects."""
+
 import asyncio
 import hashlib
 import hmac
@@ -40,9 +41,15 @@ async def process(payload: Envelope, request: Request, x_leadflow_token: str = H
     # This receiver is intentionally local-only, including when behind the Next proxy.
     request.app.state.auth.require_local(request)
     secret = settings.n8n_webhook_secret.get_secret_value()
-    if not settings.automation_enabled or not secret or not hmac.compare_digest(x_leadflow_token.encode(), secret.encode()):
+    if (
+        not settings.automation_enabled
+        or not secret
+        or not hmac.compare_digest(x_leadflow_token.encode(), secret.encode())
+    ):
         raise HTTPException(401, "Workflowauthenticatie is niet geldig.")
-    if abs(time.time() - payload.timestamp) > 300 or not hmac.compare_digest(payload.signature, signature(payload.event, payload.timestamp, secret)):
+    if abs(time.time() - payload.timestamp) > 300 or not hmac.compare_digest(
+        payload.signature, signature(payload.event, payload.timestamp, secret)
+    ):
         raise HTTPException(401, "De workflowhandtekening is niet geldig of verlopen.")
     try:
         return await Outbox(settings.demo_db_path).process(payload.event)
@@ -65,12 +72,20 @@ class Worker:
         secret = self.settings.n8n_webhook_secret.get_secret_value()
         error = None
         try:
-            response = await self.client.post(self.settings.n8n_webhook_url,
-                headers={"X-LeadFlow-Token": secret}, json=envelope(job["event"], secret),
-                follow_redirects=False, timeout=15)
+            response = await self.client.post(
+                self.settings.n8n_webhook_url,
+                headers={"X-LeadFlow-Token": secret},
+                json=envelope(job["event"], secret),
+                follow_redirects=False,
+                timeout=15,
+            )
             response.raise_for_status()
             result = response.json()
-            if not isinstance(result, dict) or result.get("processed") is not True or result.get("event_id") != job["id"]:
+            if (
+                not isinstance(result, dict)
+                or result.get("processed") is not True
+                or result.get("event_id") != job["id"]
+            ):
                 error = "invalid_ack"
             elif not await self.outbox.finish(job):
                 error = "missing_receipt_or_lease"

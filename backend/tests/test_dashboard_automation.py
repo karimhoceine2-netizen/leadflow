@@ -10,11 +10,17 @@ from test_admin import client, settings, password_hash, login
 from test_api import send
 
 
-@pytest.mark.parametrize("state,receipt,expected", [
-    ("pending", False, "pending"), ("dead", False, "failed"),
-    ("pending", True, "processed"), ("dead", True, "processed"), ("delivered", True, "processed"),
-    ("delivered", False, "pending"),
-])
+@pytest.mark.parametrize(
+    "state,receipt,expected",
+    [
+        ("pending", False, "pending"),
+        ("dead", False, "failed"),
+        ("pending", True, "processed"),
+        ("dead", True, "processed"),
+        ("delivered", True, "processed"),
+        ("delivered", False, "pending"),
+    ],
+)
 def test_dashboard_uses_receipt_not_delivery_flag(client, settings, state, receipt, expected):
     lead_id = send(client).json()["id"]
     with sqlite3.connect(settings.demo_db_path) as db:
@@ -63,16 +69,26 @@ def test_processed_workflow_info_survives_manual_status_update(client, settings)
     asyncio.run(Outbox(settings.demo_db_path).process(event))
     headers = login(client)
     before = client.get(f"/api/admin/leads/{lead_id}").json()["automation"]
-    result = client.patch(f"/api/admin/leads/{lead_id}/status", json={"status": "contacted", "expected_version": 0}, headers=headers).json()
+    result = client.patch(
+        f"/api/admin/leads/{lead_id}/status", json={"status": "contacted", "expected_version": 0}, headers=headers
+    ).json()
     assert result["status"] == "contacted" and result["automation"] == before
     assert len(result["history"]) == 1
 
 
 def test_missing_workflow_info_is_explicitly_unavailable():
     # A record without workflow information must never be labelled as processed or not scheduled.
-    record = LeadRecord(id="e5c0ca0c-7a37-4877-aec0-4925060005ab", name="Test User", email="test@example.com",
-        company_name="Fictief Bedrijf", description="Fictieve aanvraag", status="new", version=0,
-        created_at="2026-10-10T00:00:00Z", updated_at="2026-10-10T00:00:00Z")
+    record = LeadRecord(
+        id="e5c0ca0c-7a37-4877-aec0-4925060005ab",
+        name="Test User",
+        email="test@example.com",
+        company_name="Fictief Bedrijf",
+        description="Fictieve aanvraag",
+        status="new",
+        version=0,
+        created_at="2026-10-10T00:00:00Z",
+        updated_at="2026-10-10T00:00:00Z",
+    )
     assert record.automation.status == "unavailable"
 
 

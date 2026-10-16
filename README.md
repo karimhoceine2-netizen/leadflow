@@ -120,6 +120,22 @@ I built this together with an AI coding assistant. I decided what the app should
 - **A processing receipt and the CRM status are separate facts.** Automation shows what happened; a person still decides the lead's status.
 - **Priority uses fixed rules, not AI**, so its behaviour can be tested and explained.
 
+## Security notes
+
+The admin area has more protection than a local demo strictly needs. I used it to practise these controls and can explain each one:
+
+- **Loopback only.** The backend and the Next.js proxy refuse non-local requests, and the frontend binds to `127.0.0.1`.
+- **Passwords** are hashed with PBKDF2-SHA256 (600,000 iterations) and compared in constant time. No default login exists; you create your own on first start.
+- **Sessions** live in memory for one hour, in an HttpOnly, SameSite=Strict cookie. Every write needs a CSRF token and an allowed `Origin`.
+- **Limits.** Intake and login are rate limited, request bodies are capped at 16 KB, and validation errors don't echo what was submitted.
+- **Webhook receiver.** It checks a shared token and an HMAC signature with a timestamp (valid for 5 minutes).
+
+A real deployment would additionally need HTTPS (the cookie is not marked `Secure` locally), session and rate-limit storage shared between workers, and a production database. This showcase doesn't claim any of that.
+
+## Code conventions
+
+User-facing text is Dutch; code, comments and documentation are English. Python is formatted with `ruff format` (line length 120, see `ruff.toml`).
+
 ## Lessons learned
 
 - Commit an event alongside the lead to avoid losing follow-up work.

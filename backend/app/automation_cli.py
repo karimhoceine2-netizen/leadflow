@@ -20,7 +20,11 @@ async def main():
     if args.command == "retry":
         if not args.event_id:
             parser.error("retry vereist een event-ID uit het statusoverzicht")
-        print("Opnieuw ingepland." if await outbox.retry(str(args.event_id)) else "Geen mislukt event met dit ID gevonden.")
+        print(
+            "Opnieuw ingepland."
+            if await outbox.retry(str(args.event_id))
+            else "Geen mislukt event met dit ID gevonden."
+        )
     else:
         status = await outbox.status()
         if args.json:

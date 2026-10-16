@@ -26,8 +26,14 @@ def password_hash():
 
 @pytest.fixture
 def settings(tmp_path, password_hash):
-    return Settings(app_env="test", demo_db_path=tmp_path / "leads.sqlite3", env_file=tmp_path / ".env",
-                    admin_email=CREDENTIALS["email"], admin_password_hash=SecretStr(password_hash), auth_rate_limit_per_minute=100)
+    return Settings(
+        app_env="test",
+        demo_db_path=tmp_path / "leads.sqlite3",
+        env_file=tmp_path / ".env",
+        admin_email=CREDENTIALS["email"],
+        admin_password_hash=SecretStr(password_hash),
+        auth_rate_limit_per_minute=100,
+    )
 
 
 @pytest.fixture
@@ -48,7 +54,10 @@ def test_first_account_setup_persists_hash_and_does_not_replace_config(settings,
     settings.env_file.write_text("RATE_LIMIT_PER_MINUTE=17\n", encoding="utf-8")
     with TestClient(create_app(settings), client=("127.0.0.1", 1)) as client:
         assert client.get("/api/admin/session").json()["setup_required"] is True
-        assert client.post("/api/admin/setup", json={**CREDENTIALS, "password": "short"}, headers=ORIGIN).status_code == 422
+        assert (
+            client.post("/api/admin/setup", json={**CREDENTIALS, "password": "short"}, headers=ORIGIN).status_code
+            == 422
+        )
         created = client.post("/api/admin/setup", json=CREDENTIALS, headers=ORIGIN)
         assert created.status_code == 201
         assert client.get("/api/admin/leads").status_code == 200
@@ -70,8 +79,10 @@ def test_first_account_setup_persists_hash_and_does_not_replace_config(settings,
 def test_account_disk_failure_returns_safe_error_without_session(settings, monkeypatch):
     settings.admin_password_hash = SecretStr("")
     app = create_app(settings)
+
     def fail(*args):
         raise OSError("private disk details")
+
     monkeypatch.setattr(app.state.auth, "_persist", fail)
     with TestClient(app, client=("127.0.0.1", 1)) as client:
         response = client.post("/api/admin/setup", json=CREDENTIALS, headers=ORIGIN)
@@ -89,7 +100,14 @@ def test_setup_lock_prevents_overwriting_an_existing_disk_account(settings):
         assert dotenv_values(settings.env_file)["ADMIN_PASSWORD_HASH"] == "existing-hash"
 
 
-@pytest.mark.parametrize("path,method", [("/api/admin/leads", "get"), (f"/api/admin/leads/{uuid4()}", "get"), (f"/api/admin/leads/{uuid4()}/status", "patch")])
+@pytest.mark.parametrize(
+    "path,method",
+    [
+        ("/api/admin/leads", "get"),
+        (f"/api/admin/leads/{uuid4()}", "get"),
+        (f"/api/admin/leads/{uuid4()}/status", "patch"),
+    ],
+)
 def test_personal_data_and_status_writes_require_authentication(client, path, method):
     result = getattr(client, method)(path)
     assert result.status_code == 401
@@ -124,7 +142,9 @@ def test_credentials_work_after_restart_but_old_session_does_not(settings):
         assert second.get("/api/admin/leads").status_code == 200
 
 
-@pytest.mark.parametrize("changes", [{"password": "incorrect"}, {"email": "other@example.com"}, {"email": "é@example.com"}])
+@pytest.mark.parametrize(
+    "changes", [{"password": "incorrect"}, {"email": "other@example.com"}, {"email": "é@example.com"}]
+)
 def test_invalid_login_is_generic_and_safe(client, changes):
     result = client.post("/api/admin/login", json={**CREDENTIALS, **changes}, headers=ORIGIN)
     assert result.status_code == 401
@@ -154,11 +174,25 @@ def test_non_loopback_and_production_login_blocked(settings):
         assert client.get("/api/admin/session").status_code == 403
 
 
-@pytest.mark.parametrize("headers", [ORIGIN, {"Origin": "http://localhost:3000", "X-CSRF-Token": "wrong"}, {"Origin": "https://evil.example", "X-CSRF-Token": "wrong"}])
+@pytest.mark.parametrize(
+    "headers",
+    [
+        ORIGIN,
+        {"Origin": "http://localhost:3000", "X-CSRF-Token": "wrong"},
+        {"Origin": "https://evil.example", "X-CSRF-Token": "wrong"},
+    ],
+)
 def test_status_and_logout_require_csrf(client, headers):
     login(client)
     lead = send(client).json()
-    assert client.patch(f"/api/admin/leads/{lead['id']}/status", json={"status": "qualified", "expected_version": 0}, headers=headers).status_code == 403
+    assert (
+        client.patch(
+            f"/api/admin/leads/{lead['id']}/status",
+            json={"status": "qualified", "expected_version": 0},
+            headers=headers,
+        ).status_code
+        == 403
+    )
     assert client.post("/api/admin/logout", headers=headers).status_code == 403
     assert client.get(f"/api/admin/leads/{lead['id']}").json()["status"] == "new"
 
@@ -194,8 +228,17 @@ def test_detail_status_history_noop_and_conflict(client):
     unchanged = client.patch(path, json={"status": "contacted", "expected_version": 1}, headers=headers).json()
     assert unchanged["version"] == 1 and len(unchanged["history"]) == 1
     assert client.get(f"/api/admin/leads/{uuid4()}").status_code == 404
-    assert client.patch(f"/api/admin/leads/{uuid4()}/status", json={"status": "qualified", "expected_version": 0}, headers=headers).status_code == 404
-    for payload in [{"status": "unknown", "expected_version": 1}, {"status": "closed", "expected_version": -1}, {"status": "closed", "expected_version": 1, "actor": "spoof@example.com"}]:
+    assert (
+        client.patch(
+            f"/api/admin/leads/{uuid4()}/status", json={"status": "qualified", "expected_version": 0}, headers=headers
+        ).status_code
+        == 404
+    )
+    for payload in [
+        {"status": "unknown", "expected_version": 1},
+        {"status": "closed", "expected_version": -1},
+        {"status": "closed", "expected_version": 1, "actor": "spoof@example.com"},
+    ]:
         assert client.patch(path, json=payload, headers=headers).status_code == 422
 
 
@@ -204,24 +247,39 @@ def test_parallel_edits_have_one_winner_and_audit_is_atomic(settings):
         repo = DemoRepository(settings.demo_db_path)
         await repo.initialize()
         lead = await repo.create(LeadCreate(**PAYLOAD), uuid4())
-        results = await asyncio.gather(*(repo.update_status(lead.id, StatusUpdate(status="contacted", expected_version=0), CREDENTIALS["email"]) for _ in range(5)), return_exceptions=True)
+        results = await asyncio.gather(
+            *(
+                repo.update_status(lead.id, StatusUpdate(status="contacted", expected_version=0), CREDENTIALS["email"])
+                for _ in range(5)
+            ),
+            return_exceptions=True,
+        )
         assert sum(isinstance(item, VersionConflict) for item in results) == 4
         assert len((await repo.detail(lead.id)).history) == 1
         # A failed history insert must roll back the status change, too.
         with sqlite3.connect(settings.demo_db_path) as db:
-            db.execute("CREATE TRIGGER fail_audit BEFORE INSERT ON lead_status_events BEGIN SELECT RAISE(ABORT, 'test failure'); END")
+            db.execute(
+                "CREATE TRIGGER fail_audit BEFORE INSERT ON lead_status_events BEGIN SELECT RAISE(ABORT, 'test failure'); END"
+            )
         with pytest.raises(StorageUnavailable):
             await repo.update_status(lead.id, StatusUpdate(status="closed", expected_version=1), CREDENTIALS["email"])
         detail = await repo.detail(lead.id)
         assert detail.status == "contacted" and detail.version == 1 and len(detail.history) == 1
+
     asyncio.run(scenario())
 
 
 def test_migration_preserves_phase_one_leads(settings):
     with sqlite3.connect(settings.demo_db_path) as db:
-        db.execute("CREATE TABLE leads (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, company_name TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'new', idempotency_key TEXT NOT NULL UNIQUE, payload_hash TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+        db.execute(
+            "CREATE TABLE leads (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, company_name TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'new', idempotency_key TEXT NOT NULL UNIQUE, payload_hash TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+        )
         lead_id = str(uuid4())
-        db.execute("INSERT INTO leads (id, name, email, company_name, description, idempotency_key, payload_hash) VALUES (?, ?, ?, ?, ?, ?, ?)", (lead_id, *PAYLOAD.values(), str(uuid4()), "a" * 64))
+        db.execute(
+            "INSERT INTO leads (id, name, email, company_name, description, idempotency_key, payload_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (lead_id, *PAYLOAD.values(), str(uuid4()), "a" * 64),
+        )
+
     async def scenario():
         repo = DemoRepository(settings.demo_db_path)
         await repo.initialize()
@@ -231,15 +289,29 @@ def test_migration_preserves_phase_one_leads(settings):
         assert detail.updated_at == detail.created_at
         with sqlite3.connect(settings.demo_db_path) as db:
             assert db.execute("SELECT count(*) FROM lead_events").fetchone()[0] == 0
+
     asyncio.run(scenario())
 
 
 def test_admin_storage_failure_is_safe(client):
     headers = login(client)
+
     class Unavailable:
-        async def list(self, *args): raise StorageUnavailable("secret")
-        async def detail(self, *args): raise StorageUnavailable("secret")
-        async def update_status(self, *args): raise StorageUnavailable("secret")
+        async def list(self, *args):
+            raise StorageUnavailable("secret")
+
+        async def detail(self, *args):
+            raise StorageUnavailable("secret")
+
+        async def update_status(self, *args):
+            raise StorageUnavailable("secret")
+
     client.app.state.repository = Unavailable()
-    for result in [client.get("/api/admin/leads"), client.get(f"/api/admin/leads/{uuid4()}"), client.patch(f"/api/admin/leads/{uuid4()}/status", json={"status": "closed", "expected_version": 0}, headers=headers)]:
+    for result in [
+        client.get("/api/admin/leads"),
+        client.get(f"/api/admin/leads/{uuid4()}"),
+        client.patch(
+            f"/api/admin/leads/{uuid4()}/status", json={"status": "closed", "expected_version": 0}, headers=headers
+        ),
+    ]:
         assert result.status_code == 503 and "secret" not in result.text

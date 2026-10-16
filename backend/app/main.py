@@ -28,7 +28,11 @@ def create_app(settings: Settings | None = None, *, start_automation_worker: boo
         async with httpx.AsyncClient(timeout=8.0, follow_redirects=False, trust_env=False) as client:
             app.state.repository = DemoRepository(settings.demo_db_path)
             await app.state.repository.initialize()
-            worker = asyncio.create_task(Worker(settings, client).run()) if settings.automation_enabled and start_automation_worker else None
+            worker = (
+                asyncio.create_task(Worker(settings, client).run())
+                if settings.automation_enabled and start_automation_worker
+                else None
+            )
             try:
                 yield
             finally:
@@ -37,9 +41,14 @@ def create_app(settings: Settings | None = None, *, start_automation_worker: boo
                     with suppress(asyncio.CancelledError):
                         await worker
 
-    app = FastAPI(title="Magnifize LeadFlow API", version="0.3.0", lifespan=lifespan,
-                  docs_url="/docs" if settings.app_env != "production" else None,
-                  redoc_url=None, openapi_url="/openapi.json" if settings.app_env != "production" else None)
+    app = FastAPI(
+        title="Magnifize LeadFlow API",
+        version="0.3.0",
+        lifespan=lifespan,
+        docs_url="/docs" if settings.app_env != "production" else None,
+        redoc_url=None,
+        openapi_url="/openapi.json" if settings.app_env != "production" else None,
+    )
     app.state.settings = settings
     app.state.auth = LocalAuth(settings)
     app.include_router(admin_router)
@@ -58,7 +67,11 @@ def create_app(settings: Settings | None = None, *, start_automation_worker: boo
             started, count = buckets.get(ip, (now, 0))
             limit = settings.auth_rate_limit_per_minute if is_auth else settings.rate_limit_per_minute
             if count >= limit or (ip not in buckets and len(buckets) >= 10000):
-                return JSONResponse(status_code=429, content={"detail": "Te veel aanvragen. Wacht een minuut en probeer opnieuw."}, headers={"Retry-After": "60"})
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Te veel aanvragen. Wacht een minuut en probeer opnieuw."},
+                    headers={"Retry-After": "60"},
+                )
             buckets[ip] = (started, count + 1)
         if request.method in {"POST", "PATCH"} and request.url.path.startswith("/api/"):
             body = bytearray()
@@ -72,8 +85,13 @@ def create_app(settings: Settings | None = None, *, start_automation_worker: boo
         response.headers["Cache-Control"] = "no-store"
         return response
 
-    app.add_middleware(CORSMiddleware, allow_origins=settings.allowed_origins, allow_credentials=False,
-                       allow_methods=["POST", "GET", "PATCH"], allow_headers=["Content-Type", "Idempotency-Key", "X-CSRF-Token"])
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.allowed_origins,
+        allow_credentials=False,
+        allow_methods=["POST", "GET", "PATCH"],
+        allow_headers=["Content-Type", "Idempotency-Key", "X-CSRF-Token"],
+    )
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
@@ -86,8 +104,12 @@ def create_app(settings: Settings | None = None, *, start_automation_worker: boo
         return {"status": "ok"}
 
     @app.post("/api/leads", response_model=LeadResponse, status_code=201)
-    async def create_lead(lead: LeadCreate, request: Request, response: Response,
-                          idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")):
+    async def create_lead(
+        lead: LeadCreate,
+        request: Request,
+        response: Response,
+        idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    ):
         try:
             key = UUID(idempotency_key) if idempotency_key else None
         except ValueError:

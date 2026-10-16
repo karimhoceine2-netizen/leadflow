@@ -31,7 +31,15 @@ class Settings(BaseModel):
             raise ValueError("ALLOWED_ORIGINS requires explicit origins")
         if self.automation_enabled:
             target = urlparse(self.n8n_webhook_url)
-            if target.scheme != "http" or target.hostname not in {"127.0.0.1", "localhost", "::1"} or target.username or target.password or target.query or target.fragment or not target.path.startswith("/webhook/"):
+            if (
+                target.scheme != "http"
+                or target.hostname not in {"127.0.0.1", "localhost", "::1"}
+                or target.username
+                or target.password
+                or target.query
+                or target.fragment
+                or not target.path.startswith("/webhook/")
+            ):
                 raise ValueError("Local n8n requires an HTTP loopback production webhook URL")
             if len(self.n8n_webhook_secret.get_secret_value()) < 32:
                 raise ValueError("N8N_WEBHOOK_SECRET must have at least 32 characters")
@@ -46,7 +54,11 @@ class Settings(BaseModel):
         return cls(
             app_env=values.get("APP_ENV", "development"),
             demo_db_path=path if path.is_absolute() else PROJECT_ROOT / path,
-            allowed_origins=[item.strip() for item in (values.get("ALLOWED_ORIGINS") or "http://localhost:3000,http://127.0.0.1:3000").split(",") if item.strip()],
+            allowed_origins=[
+                item.strip()
+                for item in (values.get("ALLOWED_ORIGINS") or "http://localhost:3000,http://127.0.0.1:3000").split(",")
+                if item.strip()
+            ],
             rate_limit_per_minute=values.get("RATE_LIMIT_PER_MINUTE", "30"),
             admin_email=(values.get("ADMIN_EMAIL") or "").lower(),
             admin_password_hash=SecretStr(values.get("ADMIN_PASSWORD_HASH") or ""),
